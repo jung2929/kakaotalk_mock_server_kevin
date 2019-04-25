@@ -1,0 +1,13 @@
+# Image Folder
+imageE/
+imageP/
+logs/
+
+# Important Folder
+.vscode/
+
+# Important
+database.php
+jwt_secret_key.php
+
+
