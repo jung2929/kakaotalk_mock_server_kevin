@@ -520,25 +520,33 @@
     //차단 목록
     function friend_deleted($Email){
         $pdo = pdoSqlConnect();
-        $query = "SELECT F.No, F.Uno, F.Fno
+        $query = " SELECT Email, Name 
+            FROM user_TB 
+            WHERE Deleted = ?
+            AND Uno IN (
+                SELECT F.Fno
                 FROM friend_TB AS F
                 INNER JOIN user_TB AS U ON U.Uno = F.Uno 
-                WHERE U.Email = ? AND U.Deleted = ? AND F.Deleted = ? ";
+                WHERE U.Email = ? AND U.Deleted = ? AND F.Deleted = ?)";
 
         $st = $pdo->prepare($query);
-        $st->execute([$Email, 'N', 'Y']);
+        $st->execute(['N', $Email, 'N', 'Y']);
         $st->setFetchMode(PDO::FETCH_ASSOC);
 
-        while($row = $st->fetch()) {
-            $sql = "SELECT Email, Name FROM user_TB WHERE Uno = ? AND Deleted = ?";
+        $res = Array();
+        while ($row = $st->fetch()) {
+            $elements = (object) Array();
+            $elements->Email = $row["Email"];
+            $elements->Name = $row["Name"];
             
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([$row["Fno"], 'N']);
-            $stmt->setFetchMode(PDO::FETCH_ASSOC);
-            $res = $stmt->fetchAll();
+            $data = profile_check($row["Email"]);
+            $elements->Prof_img = $data->Prof_img;
+            $elements->Back_img = $data->Back_img;
+            $elements->Status = $data->Status;
+            array_push($res, $elements);
         }
         
-        $stmt=null;$st=null;$pdo = null;
+        $elements=null;$st=null;$pdo = null;
         
         return $res;
     }
@@ -546,42 +554,35 @@
     //친구 목록
     function friend($Email){
         $pdo = pdoSqlConnect();
-        $query = "SELECT F.Fno 
+        $query = "SELECT DISTINCT U.Email, U.Name
             FROM user_TB AS U
-            INNER JOIN friend_TB AS F ON F.Uno = U.Uno 
-            WHERE U.Email = ? AND U.Deleted = ? AND F.Deleted = ?";
+            INNER JOIN friend_TB AS F ON F.Fno = U.Uno 
+            WHERE U.Deleted = ? AND F.Deleted = ?
+            AND F.Fno IN (SELECT SF.Fno 
+                FROM user_TB AS SU
+                INNER JOIN friend_TB AS SF ON SF.Uno = SU.Uno 
+                WHERE SU.Email = ? AND SU.Deleted = ? AND SF.Deleted = ?)";
 
         $st = $pdo->prepare($query);
-        $st->execute([$Email, 'N', 'N']);
+        $st->execute(['N', 'N', $Email, 'N', 'N']);
         $st->setFetchMode(PDO::FETCH_ASSOC);
         
-        $data = Array();
+        $res = Array();
         while ($row = $st->fetch()) {
-
-            $sql = "SELECT U.Email, U.Name, P.Prof_img, P.Back_img, P.Status
-                FROM user_TB AS U
-                INNER JOIN friend_TB AS F ON F.Fno = U.Uno 
-                INNER JOIN profile_TB AS P ON P.Uno = F.Fno
-                WHERE F.Fno = ? AND U.Deleted = ? AND F.Deleted = ? AND P.Deleted = ?";
-
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([$row["Fno"], 'N', 'N', 'N']);
-            $stmt->setFetchMode(PDO::FETCH_ASSOC);
-
-            while($res = $stmt->fetch()) {
-                $elements = (object) Array();
-                $elements->Name = $res["Name"];
-                $elements->Email = $res["Email"];
-                $elements->Prof_img = $res["Prof_img"];
-                $elements->Back_img = $res["Back_img"];
-                $elements->Status = $res["Status"];
-            }   array_push($data, $elements);
-
+            $elements = (object) Array();
+            $elements->Email = $row["Email"];
+            $elements->Name = $row["Name"];
+            
+            $data = profile_check($row["Email"]);
+            $elements->Prof_img = $data->Prof_img;
+            $elements->Back_img = $data->Back_img;
+            $elements->Status = $data->Status;
+            array_push($res, $elements);
         }
-
-        $elements=null;$stmt=null;$st=null;$pdo = null;
         
-        return $data;
+        $elements=null;$st=null;$pdo = null;
+        
+        return $res;
     }
 
     //친구 조회
@@ -589,41 +590,35 @@
         $pdo = pdoSqlConnect();
         $like = preg_replace("/\s+/", "", $Name);
 
-        $query = "SELECT F.Fno 
+        $query = "SELECT DISTINCT U.Email, U.Name
             FROM user_TB AS U
-            INNER JOIN friend_TB AS F ON F.Uno = U.Uno 
-            WHERE U.Email = ? AND U.Deleted = ? AND F.Deleted = ?";
+            INNER JOIN friend_TB AS F ON F.Fno = U.Uno
+            WHERE U.Name LIKE ? AND U.Deleted = ? AND F.Deleted = ?
+            AND F.Fno IN (SELECT SF.Fno 
+                FROM user_TB AS SU
+                INNER JOIN friend_TB AS SF ON SF.Uno = SU.Uno 
+                WHERE SU.Email = ? AND SU.Deleted = ? AND SF.Deleted = ?) ";
 
         $st = $pdo->prepare($query);
-        $st->execute([$Email, 'N', 'N']);
+        $st->execute(["%$like%", 'N', 'N', $Email, 'N', 'N']);
         $st->setFetchMode(PDO::FETCH_ASSOC);
         
-        $data = Array();
+        $res = Array();
         while ($row = $st->fetch()) {
-
-            $sql = "SELECT U.Email, U.Name, P.Prof_img, P.Back_img, P.Status
-                FROM user_TB AS U
-                INNER JOIN friend_TB AS F ON F.Fno = U.Uno
-                INNER JOIN profile_TB AS P ON P.Uno = F.Fno
-                WHERE F.Fno = ? AND U.Name LIKE ? AND U.Deleted = ? AND F.Deleted = ?";
+            $elements = (object) Array();
+            $elements->Email = $row["Email"];
+            $elements->Name = $row["Name"];
             
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([$row["Fno"], "%$like%", 'N', 'N']);
-            $stmt->setFetchMode(PDO::FETCH_ASSOC);
-            
-            while($res = $stmt->fetch()) {
-                $elements = (object) Array();
-                $elements->Name = $res["Name"];
-                $elements->Email = $res["Email"];
-                $elements->Prof_img = $res["Prof_img"];
-                $elements->Back_img = $res["Back_img"];
-                $elements->Status = $res["Status"];
-            }  
-        } array_push($data, $elements);
-
-        $Fno=null;$stmt=null;$st=null;$pdo = null;
+            $data = profile_check($row["Email"]);
+            $elements->Prof_img = $data->Prof_img;
+            $elements->Back_img = $data->Back_img;
+            $elements->Status = $data->Status;
+            array_push($res, $elements);
+        }
         
-        return $data;
+        $elements=null;$st=null;$pdo = null;
+        
+        return $res;
     }
 
     /* ************************************************************************* */
@@ -939,28 +934,20 @@
     //채팅 (기록)
     function chat_find($Email, $Name, $Page){
         $pdo = pdoSqlConnect();
-        $query = "SELECT Name FROM user_TB WHERE Email = ? AND Deleted = ?";
+        $query = "SELECT * FROM (
+                    SELECT @ROWNUM := @ROWNUM + 1 AS NUM, UName, RName, UText, RText 
+                    FROM (SELECT @ROWNUM := 0) R, chatR_TB 
+                    WHERE UName = (SELECT Name 
+                        FROM user_TB 
+                        WHERE Email = ? AND Deleted = ?)
+                    AND RName = ? AND Deleted = ?) A
+                WHERE NUM >= ? ";
 
         $st = $pdo->prepare($query);
-        $st->execute([$Email, 'N']);
+        $st->execute([$Email, 'N', $Name, 'N', $Page]);
         $st->setFetchMode(PDO::FETCH_ASSOC);
-        $row = $st->fetch();
+        $res = $st->fetchAll();
 
-        /* ------------------------------------------------ */
-        $sql = /*"SELECT UName, RName, UText, RText 
-            FROM chatR_TB
-            WHERE UName = ? AND RName = ? AND Deleted = ? AND No > ? * 2 LIMIT 5";*/
-            "SELECT * FROM (
-            SELECT @ROWNUM := @ROWNUM + 1 AS NUM, UName, RName, UText, RText 
-            FROM (SELECT @ROWNUM := 0) R, chatR_TB 
-            WHERE UName = ? AND RName = ? AND Deleted = ?) A
-            WHERE NUM > ? ";
-
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([$row["Name"], $Name, 'N', $Page]);
-        $stmt->setFetchMode(PDO::FETCH_ASSOC);
-        $res = $stmt->fetchAll();
-        
         $stmt=null;$st=null;$pdo = null;
        
         return $res;
@@ -1028,10 +1015,22 @@
         $st = $pdo->prepare($query);
         $st->execute([$Email, 'N', 'N']);
         $st->setFetchMode(PDO::FETCH_ASSOC);
-        $res = $st->fetchAll();
-
-        $st=null;$pdo = null;
-
+        
+        $res = Array();
+        while ($row = $st->fetch()) {
+            $elements = (object) Array();
+            $elements->Email = $row["Email"];
+            $elements->Name = $row["Name"];
+            
+            $data = profile_check($row["Email"]);
+            $elements->Prof_img = $data->Prof_img;
+            $elements->Back_img = $data->Back_img;
+            $elements->Status = $data->Status;
+            array_push($res, $elements);
+        }
+        
+        $elements=null;$st=null;$pdo = null;
+        
         return $res;
     }
 
